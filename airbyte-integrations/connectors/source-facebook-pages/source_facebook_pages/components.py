@@ -13,7 +13,6 @@ from requests import HTTPError
 
 from airbyte_cdk.sources.declarative.auth.declarative_authenticator import NoAuth
 from airbyte_cdk.sources.declarative.interpolation.interpolated_string import InterpolatedString
-from airbyte_cdk.sources.declarative.schema import JsonFileSchemaLoader
 from airbyte_cdk.sources.declarative.transformations import RecordTransformation
 from airbyte_cdk.sources.declarative.types import Config, Record, StreamSlice, StreamState
 
@@ -55,44 +54,44 @@ class AuthenticatorFacebookPageAccessToken(NoAuth):
 @dataclass
 class CustomFieldTransformation(RecordTransformation):
     """
-    Transform all 'date-time' fields from schema (nested included) to rfc3339 format
-    Issue: https://github.com/airbytehq/airbyte/issues/23407
+    Transform all 'date-time' fields to rfc3339 format.
+
+    The original implementation dynamically discovered which fields need this
+    by loading the stream's JSON schema file from disk via JsonFileSchemaLoader
+    - that only works when this connector runs as its real installed package,
+    with schemas/*.json alongside it. The Connector Builder's custom-components
+    sandbox has no such files (schemas are now embedded inline in the manifest
+    instead), so this uses a static per-stream field list - the actual set of
+    date-time fields in Facebook's schema doesn't change at runtime, so there's
+    nothing lost by hardcoding it. Derived from the connector's own schemas/*.json.
     """
 
     config: Config
     parameters: InitVar[Mapping[str, Any]]
 
+    DATE_TIME_PATHS_BY_STREAM = {
+        "page": ["leadgen_tos_acceptance_time"],
+        "post": ["backdated_time", "created_time", "updated_time"],
+        "post_insights": ["values/*/end_time"],
+        "page_insights": ["values/*/end_time"],
+    }
+
     def __post_init__(self, parameters: Mapping[str, Any]):
         self.name = parameters.get("name")
-
-    def _get_schema_root_properties(self):
-        schema_loader = JsonFileSchemaLoader(config=self.config, parameters={"name": self.name})
-        schema = schema_loader.get_json_schema()
-        return schema["properties"]
-
-    def _get_date_time_dpath_from_schema(self):
-        """
-        Get all dpath in format 'a/b/*/c' from schema with format: 'date-time'
-        """
-        schema = self._get_schema_root_properties()
-        all_results = dpath.util.search(schema, "**", yielded=True, afilter=lambda x: True if "date-time" in str(x) else False)
-        full_dpath = [x[0] for x in all_results if isinstance(x[1], dict) and x[1].get("format") == "date-time"]
-        return [path.replace("/properties", "").replace("items", "*") for path in full_dpath]
 
     @staticmethod
     def _to_rfc3339(value: str) -> str:
         # stdlib-only replacement for pendulum.parse(...).to_rfc3339_string() -
         # pendulum isn't available in the Connector Builder's custom-components
-        # sandbox, only datetime/dpath/requests are. Facebook's date-time
-        # fields are already ISO 8601, which datetime.fromisoformat handles
-        # directly (Python 3.11+ accepts a trailing "Z" too).
+        # sandbox. datetime.fromisoformat handles Facebook's date-time formats
+        # directly (ISO 8601 with Z, +0000, or +00:00 suffixes - verified).
         return datetime.fromisoformat(str(value)).isoformat()
 
     def _date_time_to_rfc3339(self, record: MutableMapping[str, Any]) -> MutableMapping[str, Any]:
         """
         Transform 'date-time' items to RFC3339 format
         """
-        date_time_paths = self._get_date_time_dpath_from_schema()
+        date_time_paths = self.DATE_TIME_PATHS_BY_STREAM.get(self.name, [])
         for path in date_time_paths:
             if "*" not in path:
                 if field_value := dpath.util.get(record, path, default=None):
