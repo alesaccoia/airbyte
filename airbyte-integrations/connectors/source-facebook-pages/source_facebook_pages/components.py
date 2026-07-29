@@ -74,6 +74,7 @@ class CustomFieldTransformation(RecordTransformation):
         "post": ["backdated_time", "created_time", "updated_time"],
         "post_insights": ["values/*/end_time"],
         "page_insights": ["values/*/end_time"],
+        "ig_media": ["timestamp"],
     }
 
     def __post_init__(self, parameters: Mapping[str, Any]):
