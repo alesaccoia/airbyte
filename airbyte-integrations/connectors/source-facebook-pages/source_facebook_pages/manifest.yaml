@@ -3190,7 +3190,7 @@ definitions:
       requester:
         $ref: '#/definitions/requester'
         request_parameters:
-          metric: "{{\n  ','.join([\n  'page_total_actions',\n  'page_post_engagements',\n  'page_fan_adds_by_paid_non_paid_unique',\n  'page_media_view',\n  ])\n}}\n"
+          metric: "{{\n  ','.join([\n  'page_total_actions',\n  'page_post_engagements',\n  'page_fan_adds_by_paid_non_paid_unique',\n  'page_media_view',\n  'page_views_total',\n  'page_video_views',\n  ])\n}}\n"
         path: /{{ config['page_id'] }}/insights
     schema_loader:
       type: InlineSchemaLoader
