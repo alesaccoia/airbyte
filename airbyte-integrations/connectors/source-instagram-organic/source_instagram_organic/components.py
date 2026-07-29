@@ -34,11 +34,10 @@ class AuthenticatorFacebookPageAccessToken(NoAuth):
         return request
 
     def generate_page_access_token(self) -> str:
-        # We are expecting to receive User access token from config. To access
-        # Pages API we need to generate Page access token. Page access tokens
-        # can be generated from another Page access token (with the same page ID)
-        # so if user manually set Page access token instead of User access
-        # token it would be no problem unless it has wrong page ID.
+        # config['page_id'] is the Facebook Page linked to the Instagram Business
+        # Account we actually want data from - the page access token generated
+        # here is valid against the linked IG account's Graph API endpoints too,
+        # so there's no separate Instagram auth step.
         # https://developers.facebook.com/docs/pages/access-tokens#get-a-page-access-token
         try:
             r = requests.get(
@@ -56,24 +55,16 @@ class CustomFieldTransformation(RecordTransformation):
     """
     Transform all 'date-time' fields to rfc3339 format.
 
-    The original implementation dynamically discovered which fields need this
-    by loading the stream's JSON schema file from disk via JsonFileSchemaLoader
-    - that only works when this connector runs as its real installed package,
-    with schemas/*.json alongside it. The Connector Builder's custom-components
-    sandbox has no such files (schemas are now embedded inline in the manifest
-    instead), so this uses a static per-stream field list - the actual set of
-    date-time fields in Facebook's schema doesn't change at runtime, so there's
-    nothing lost by hardcoding it. Derived from the connector's own schemas/*.json.
+    Static per-stream field list instead of a schema-file lookup, because the
+    Connector Builder's custom-components sandbox has no schema files on disk
+    (schemas are embedded inline in the manifest instead).
     """
 
     config: Config
     parameters: InitVar[Mapping[str, Any]]
 
     DATE_TIME_PATHS_BY_STREAM = {
-        "page": ["leadgen_tos_acceptance_time"],
-        "post": ["backdated_time", "created_time", "updated_time"],
-        "post_insights": ["values/*/end_time"],
-        "page_insights": ["values/*/end_time"],
+        "ig_media": ["timestamp"],
     }
 
     def __post_init__(self, parameters: Mapping[str, Any]):
@@ -81,10 +72,6 @@ class CustomFieldTransformation(RecordTransformation):
 
     @staticmethod
     def _to_rfc3339(value: str) -> str:
-        # stdlib-only replacement for pendulum.parse(...).to_rfc3339_string() -
-        # pendulum isn't available in the Connector Builder's custom-components
-        # sandbox. datetime.fromisoformat handles Facebook's date-time formats
-        # directly (ISO 8601 with Z, +0000, or +00:00 suffixes - verified).
         return datetime.fromisoformat(str(value)).isoformat()
 
     def _date_time_to_rfc3339(self, record: MutableMapping[str, Any]) -> MutableMapping[str, Any]:

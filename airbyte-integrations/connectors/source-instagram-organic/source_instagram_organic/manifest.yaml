@@ -1,0 +1,250 @@
+version: 0.29.0
+definitions:
+  schema_loader:
+    type: JsonFileSchemaLoader
+    file_path: ./source_facebook_pages/schemas/{{ parameters['name'] }}.json
+  selector:
+    extractor:
+      field_path:
+      - data
+  requester:
+    url_base: https://graph.facebook.com/v24.0
+    http_method: GET
+    error_handler:
+      type: DefaultErrorHandler
+      response_filters:
+      - action: FAIL
+        error_message_contains: This application has not been approved to use this API
+        failure_type: config_error
+        error_message: The application used to create the Facebook access token has not been approved to use this API. Possibly, some of the requested fields require additional scopes/permissions. The Airbyte OAuth App is being in process of requesting needed scopes. In the meantime, we suggest you use your own access token with the necessary permissions. Please, visit https://docs.airbyte.com/integrations/sources/facebook-pages#creating-your-own-oauth-app for more info about your own OAuth App.
+      - action: FAIL
+        error_message_contains: Tried accessing nonexisting field
+        error_message: Request contains invalid/deprecated field.
+      - http_codes:
+        - 400
+        action: RETRY
+      - action: RETRY
+        error_message_contains: Please reduce the amount of data you're asking for, then retry your request
+    authenticator:
+      type: CustomAuthenticator
+      class_name: components.AuthenticatorFacebookPageAccessToken
+      page_id: '{{ config[''page_id''] }}'
+      access_token: '{{ config[''access_token''] }}'
+  facebook_post_paginator:
+    type: DefaultPaginator
+    pagination_strategy:
+      type: CursorPagination
+      cursor_value: '{{ response.paging.get(''cursors'', {}).get(''after'') }}'
+      stop_condition: '{{ response.paging == '''' or not response.paging.get(''next'') }}'
+      page_size: '{{ config.get(''page_size'', 100) }}'
+    page_size_option:
+      field_name: limit
+      inject_into: request_parameter
+    page_token_option:
+      type: RequestOption
+      field_name: after
+      inject_into: request_parameter
+  retriever:
+    record_selector:
+      $ref: '#/definitions/selector'
+    paginator:
+      type: NoPagination
+    requester:
+      $ref: '#/definitions/requester'
+  base_stream:
+    schema_loader:
+      $ref: '#/definitions/schema_loader'
+    retriever:
+      $ref: '#/definitions/retriever'
+    transformations:
+    - type: CustomTransformation
+      class_name: components.CustomFieldTransformation
+  ig_media_stream:
+    $ref: '#/definitions/base_stream'
+    $parameters:
+      name: ig_media
+      primary_key: id
+    retriever:
+      $ref: '#/definitions/retriever'
+      paginator:
+        $ref: '#/definitions/facebook_post_paginator'
+      requester:
+        $ref: '#/definitions/requester'
+        request_parameters:
+          fields: id,caption,media_type,media_product_type,media_url,permalink,thumbnail_url,timestamp,username,like_count,comments_count,shortcode,is_comment_enabled,owner,children{id,media_type,media_url,thumbnail_url}
+        path: /{{ config['instagram_account_id'] }}/media
+    schema_loader:
+      type: InlineSchemaLoader
+      schema:
+        $schema: http://json-schema.org/draft-07/schema#
+        type: object
+        properties:
+          id:
+            type:
+            - string
+            - 'null'
+          caption:
+            type:
+            - string
+            - 'null'
+          media_type:
+            type:
+            - string
+            - 'null'
+          media_product_type:
+            type:
+            - string
+            - 'null'
+          media_url:
+            type:
+            - string
+            - 'null'
+          permalink:
+            type:
+            - string
+            - 'null'
+          thumbnail_url:
+            type:
+            - string
+            - 'null'
+          timestamp:
+            type:
+            - string
+            - 'null'
+            format: date-time
+          username:
+            type:
+            - string
+            - 'null'
+          like_count:
+            type:
+            - integer
+            - 'null'
+          comments_count:
+            type:
+            - integer
+            - 'null'
+          shortcode:
+            type:
+            - string
+            - 'null'
+          is_comment_enabled:
+            type:
+            - boolean
+            - 'null'
+          owner:
+            type:
+            - object
+            - 'null'
+            properties:
+              id:
+                type:
+                - string
+                - 'null'
+          children:
+            type:
+            - object
+            - 'null'
+            properties:
+              data:
+                type:
+                - array
+                - 'null'
+                items:
+                  type:
+                  - object
+                  - 'null'
+                  properties:
+                    id:
+                      type:
+                      - string
+                      - 'null'
+                    media_type:
+                      type:
+                      - string
+                      - 'null'
+                    media_url:
+                      type:
+                      - string
+                      - 'null'
+                    thumbnail_url:
+                      type:
+                      - string
+                      - 'null'
+  ig_media_insights_stream:
+    $ref: '#/definitions/base_stream'
+    $parameters:
+      name: ig_media_insights
+      primary_key: id
+    retriever:
+      $ref: '#/definitions/retriever'
+      paginator:
+        $ref: '#/definitions/facebook_post_paginator'
+      record_selector:
+        type: RecordSelector
+        extractor:
+          field_path:
+          - data
+          - '*'
+          - insights
+          - data
+          - '*'
+      requester:
+        $ref: '#/definitions/requester'
+        request_parameters:
+          fields: "{{ \n  'insights.metric(%s)' % ','.join(['reach', 'likes', 'comments', 'saved', 'shares', 'total_interactions',])\n}}\n"
+        path: /{{ config['instagram_account_id'] }}/media
+    schema_loader:
+      type: InlineSchemaLoader
+      schema:
+        $schema: http://json-schema.org/draft-07/schema#
+        type:
+        - 'null'
+        - object
+        properties:
+          name:
+            type:
+            - 'null'
+            - string
+          period:
+            type:
+            - 'null'
+            - string
+          values:
+            type:
+            - 'null'
+            - array
+            items:
+              type:
+              - 'null'
+              - object
+              properties:
+                value:
+                  type:
+                  - 'null'
+                  - object
+                  - string
+                  - integer
+                end_time:
+                  type:
+                  - 'null'
+                  - string
+                  format: date-time
+          title:
+            type:
+            - 'null'
+            - string
+          description:
+            type:
+            - 'null'
+            - string
+          id:
+            type:
+            - 'null'
+            - string
+streams:
+- '#/definitions/ig_media_stream'
+- '#/definitions/ig_media_insights_stream'
+check:
+  stream_names:
+  - ig_media
