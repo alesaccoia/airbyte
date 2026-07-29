@@ -27,7 +27,7 @@ definitions:
 
     authenticator:
       type: CustomAuthenticator
-      class_name: source_facebook_pages.components.AuthenticatorFacebookPageAccessToken
+      class_name: components.AuthenticatorFacebookPageAccessToken
       page_id: "{{ config['page_id'] }}"
       access_token: "{{ config['access_token'] }}"
   facebook_post_paginator:
@@ -59,7 +59,7 @@ definitions:
       $ref: "#/definitions/retriever"
     transformations:
       - type: CustomTransformation
-        class_name: source_facebook_pages.components.CustomFieldTransformation
+        class_name: components.CustomFieldTransformation
   page_query_properties:
     type: QueryProperties
     property_list:
