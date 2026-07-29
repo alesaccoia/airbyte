@@ -44,6 +44,31 @@ definitions:
       type: RequestOption
       field_name: after
       inject_into: request_parameter
+  # The 'post' stream's field list (~44 fields, including heavy nested
+  # objects like attachments/admin_creator/message_tags/place/sponsor_tags)
+  # makes Meta return "HTTP 500: Please reduce the amount of data you're
+  # asking for" once the page size climbs past ~40-50 - confirmed live, the
+  # threshold varies by which posts happen to be in the page (some have much
+  # heavier attachments than others). The connector's error handler already
+  # retries on that exact message, but retrying with the same page size just
+  # repeats the same failure until attempts are exhausted, since it's not
+  # transient. Fixed page size well under the observed threshold, independent
+  # of the shared config['page_size'] (which stays fine at 100 for the
+  # lighter-payload streams: page, post_insights, page_insights).
+  facebook_post_paginator_small:
+    type: DefaultPaginator
+    pagination_strategy:
+      type: CursorPagination
+      cursor_value: '{{ response.paging.get(''cursors'', {}).get(''after'') }}'
+      stop_condition: '{{ response.paging == '''' or not response.paging.get(''next'') }}'
+      page_size: 20
+    page_size_option:
+      field_name: limit
+      inject_into: request_parameter
+    page_token_option:
+      type: RequestOption
+      field_name: after
+      inject_into: request_parameter
   retriever:
     record_selector:
       $ref: '#/definitions/selector'
@@ -2654,7 +2679,7 @@ definitions:
     retriever:
       $ref: '#/definitions/retriever'
       paginator:
-        $ref: '#/definitions/facebook_post_paginator'
+        $ref: '#/definitions/facebook_post_paginator_small'
       requester:
         $ref: '#/definitions/requester'
         request_parameters:
