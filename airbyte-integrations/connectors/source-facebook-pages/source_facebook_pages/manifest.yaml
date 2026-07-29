@@ -3216,6 +3216,24 @@ definitions:
         $ref: '#/definitions/requester'
         request_parameters:
           metric: "{{\n  ','.join([\n  'page_total_actions',\n  'page_post_engagements',\n  'page_fan_adds_by_paid_non_paid_unique',\n  'page_media_view',\n  'page_views_total',\n  'page_video_views',\n  ])\n}}\n"
+          # Without since/until Meta defaults to only ~2 days of history.
+          # 93 days is the hard ceiling Meta enforces on the since/until
+          # window for this endpoint (confirmed live: "Time range too long"
+          # above that) - 90 leaves a small safety margin. This is a rolling
+          # window: it always covers "today minus 90 days", so coverage
+          # grows day by day but can't reach further back than 90 days from
+          # whenever the sync runs. Full historical backfill beyond that
+          # would need a proper date-windowed incremental sync (chaining
+          # multiple 90-day requests), not implemented here.
+          since: "{{ format_datetime(now_utc() - duration('P90D'), '%Y-%m-%d') }}"
+          until: "{{ format_datetime(now_utc(), '%Y-%m-%d') }}"
+          # Without this, Meta returns each metric three times - period=day,
+          # week (rolling 7-day), and days_28 (rolling 28-day) - all sharing
+          # the same date range. They're easy to mistake for the same thing
+          # summed across dates, silently 1x+7x+28x-inflating any chart that
+          # adds them together. We only want the daily figures; our own
+          # day/week/month grouping toggle already does its own bucketing.
+          period: day
         path: /{{ config['page_id'] }}/insights
     schema_loader:
       type: InlineSchemaLoader
