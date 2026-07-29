@@ -204,7 +204,6 @@ definitions:
     - posts
     - published_posts
     - tabs
-    - tagged
     - rtb_dynamic_posts
     - video_lists
     - videos
