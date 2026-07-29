@@ -3,11 +3,11 @@
 #
 
 from dataclasses import InitVar, dataclass
+from datetime import datetime
 from http import HTTPStatus
 from typing import Any, Mapping, MutableMapping, Optional, Union
 
 import dpath.util
-import pendulum
 import requests
 from requests import HTTPError
 
@@ -79,6 +79,15 @@ class CustomFieldTransformation(RecordTransformation):
         full_dpath = [x[0] for x in all_results if isinstance(x[1], dict) and x[1].get("format") == "date-time"]
         return [path.replace("/properties", "").replace("items", "*") for path in full_dpath]
 
+    @staticmethod
+    def _to_rfc3339(value: str) -> str:
+        # stdlib-only replacement for pendulum.parse(...).to_rfc3339_string() -
+        # pendulum isn't available in the Connector Builder's custom-components
+        # sandbox, only datetime/dpath/requests are. Facebook's date-time
+        # fields are already ISO 8601, which datetime.fromisoformat handles
+        # directly (Python 3.11+ accepts a trailing "Z" too).
+        return datetime.fromisoformat(str(value)).isoformat()
+
     def _date_time_to_rfc3339(self, record: MutableMapping[str, Any]) -> MutableMapping[str, Any]:
         """
         Transform 'date-time' items to RFC3339 format
@@ -87,11 +96,11 @@ class CustomFieldTransformation(RecordTransformation):
         for path in date_time_paths:
             if "*" not in path:
                 if field_value := dpath.util.get(record, path, default=None):
-                    dpath.util.set(record, path, pendulum.parse(field_value).to_rfc3339_string())
+                    dpath.util.set(record, path, self._to_rfc3339(field_value))
             else:
                 if field_values := dpath.util.values(record, path):
                     for i, date_time_value in enumerate(field_values):
-                        dpath.util.set(record, path.replace("*", str(i)), pendulum.parse(date_time_value).to_rfc3339_string())
+                        dpath.util.set(record, path.replace("*", str(i)), self._to_rfc3339(date_time_value))
         return record
 
     def transform(
