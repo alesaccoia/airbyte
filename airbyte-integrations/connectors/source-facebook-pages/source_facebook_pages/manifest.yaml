@@ -264,7 +264,6 @@ definitions:
     $parameters:
       name: page
       primary_key: id
-      path: /{{ config['page_id'] }}
     retriever:
       $ref: '#/definitions/retriever'
       record_selector:
@@ -274,6 +273,7 @@ definitions:
         $ref: '#/definitions/requester'
         request_parameters:
           fields: '#/definitions/page_query_properties'
+        path: /{{ config['page_id'] }}
     schema_loader:
       type: InlineSchemaLoader
       schema:
@@ -2652,7 +2652,6 @@ definitions:
     $parameters:
       name: post
       primary_key: id
-      path: /{{ config['page_id'] }}/feed
     retriever:
       $ref: '#/definitions/retriever'
       paginator:
@@ -2661,6 +2660,7 @@ definitions:
         $ref: '#/definitions/requester'
         request_parameters:
           fields: '#/definitions/post_query_properties'
+        path: /{{ config['page_id'] }}/feed
     schema_loader:
       type: InlineSchemaLoader
       schema:
@@ -3115,7 +3115,6 @@ definitions:
     $parameters:
       name: post_insights
       primary_key: id
-      path: /{{ config['page_id'] }}/feed
     retriever:
       $ref: '#/definitions/retriever'
       paginator:
@@ -3133,6 +3132,7 @@ definitions:
         $ref: '#/definitions/requester'
         request_parameters:
           fields: "{{ \n  'insights.metric(%s)' % ','.join([\n  'post_media_view',\n  'post_clicks',\n  'post_clicks_by_type',\n  'post_reactions_by_type_total',\n  ])\n}}\n"
+        path: /{{ config['page_id'] }}/feed
     schema_loader:
       type: InlineSchemaLoader
       schema:
@@ -3186,13 +3186,13 @@ definitions:
     $parameters:
       name: page_insights
       primary_key: id
-      path: /{{ config['page_id'] }}/insights
     retriever:
       $ref: '#/definitions/retriever'
       requester:
         $ref: '#/definitions/requester'
         request_parameters:
           metric: "{{\n  ','.join([\n  'page_total_actions',\n  'page_post_engagements',\n  'page_fan_adds_by_paid_non_paid_unique',\n  'page_media_view',\n  ])\n}}\n"
+        path: /{{ config['page_id'] }}/insights
     schema_loader:
       type: InlineSchemaLoader
       schema:
